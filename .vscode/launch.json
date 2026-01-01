@@ -1,0 +1,44 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:PicoSDKDownloader}",
+            "name": "Debug PicoSDKDownloader",
+            "target": "PicoSDKDownloader",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug PicoSDKDownloader"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:PicoSDKDownloader}",
+            "name": "Release PicoSDKDownloader",
+            "target": "PicoSDKDownloader",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release PicoSDKDownloader"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:PicoSDKDownloader}",
+            "name": "Debug pico-bootstrap",
+            "target": "pico-bootstrap",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug pico-bootstrap"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:PicoSDKDownloader}",
+            "name": "Release pico-bootstrap",
+            "target": "pico-bootstrap",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release pico-bootstrap"
+        }
+    ]
+}
