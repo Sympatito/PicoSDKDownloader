@@ -173,6 +173,16 @@ public final class Installer {
     try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
     print("Extracting OpenOCD into \(dest.path)")
     try Extractor.extract(archive: archive, to: dest)
+    try flattenSingleDirectoryIfNeeded(at: dest)
+
+    // pico-vscode expects openocd.exe (even on Unix) pointing to the real binary.
+    let binary = dest.appendingPathComponent("openocd")
+    let exe = dest.appendingPathComponent("openocd.exe")
+    if FileManager.default.fileExists(atPath: binary.path),
+       !FileManager.default.fileExists(atPath: exe.path) {
+      try? FileManager.default.removeItem(at: exe)
+      try FileManager.default.createSymbolicLink(at: exe, withDestinationURL: binary)
+    }
   }
 
   private func flattenSingleDirectoryIfNeeded(at directory: URL) throws {
