@@ -3,7 +3,7 @@
 `pico-bootstrap` is a Swift CLI that mirrors the install experience of the
 `switchSDK` task inside the [pico-vscode](https://github.com/raspberrypi/pico-vscode)
 extension. It resolves and downloads the Pico SDK, ARM bare-metal toolchain,
-Ninja, CMake, picotool, and (optionally) pico-sdk-tools into the familiar
+Ninja, CMake, picotool, OpenOCD, and (optionally) pico-sdk-tools into the familiar
 `~/.pico-sdk` layout so you can wire it into your own UI or automation.
 
 ## Requirements
@@ -43,11 +43,12 @@ swift run pico-bootstrap install \
   --toolchain 14_2_Rel1 \
   --cmake 3.31.5 \
   --ninja 1.12.1 \
-  --picotool 2.2.0-a4
+  --picotool 2.2.0-a4 \
+  --openocd 0.12.0+dev
 ```
 
 The install order matches the pico-vscode workflow: SDK → toolchain →
-`pico-sdk-tools` (optional) → Ninja → CMake → picotool. Each component is
+`pico-sdk-tools` (optional) → Ninja → CMake → picotool → OpenOCD. Each component is
 downloaded only if it does not already exist at the computed subdirectory under
 the root. After each successful install a record is written to
 `<root>/pico-bootstrap-manifest.json` so you can track what versions are present.
@@ -69,8 +70,8 @@ swift run pico-bootstrap resolve ...flags...
 ### List
 
 Lists available tags/releases for a given component so you can build selection
-menus. Valid kinds are `sdkTags`, `picotoolReleases`, `picoSdkToolsReleases`, and
-`armToolchainReleases`.
+menus. Valid kinds are `sdkTags`, `picotoolReleases`, `picoSdkToolsReleases`,
+`armToolchainReleases`, and `openocdReleases`.
 
 ```sh
 swift run pico-bootstrap list --kind sdkTags --limit 15
@@ -89,6 +90,7 @@ point to them deterministically:
   ninja/v<version>
   cmake/v<version>
   picotool/<version>
+  openocd/<version>
   pico-bootstrap-manifest.json
 ```
 

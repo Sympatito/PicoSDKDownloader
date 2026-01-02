@@ -7,6 +7,7 @@ public enum ComponentId: String, Codable {
   case cmake = "cmake"
   case ninja = "ninja"
   case picotool = "picotool"
+  case openocd = "openocd"
 }
 
 public struct InstallRequest: Codable {
@@ -15,6 +16,7 @@ public struct InstallRequest: Codable {
   public var cmakeVersion: String         // e.g. 3.31.5
   public var ninjaVersion: String         // e.g. 1.12.1
   public var picotoolVersion: String      // e.g. 2.2.0-a4
+  public var openocdVersion: String       // e.g. 0.12.0+dev
   public var includePicoSdkTools: Bool
 
   public init(
@@ -23,6 +25,7 @@ public struct InstallRequest: Codable {
     cmakeVersion: String,
     ninjaVersion: String,
     picotoolVersion: String,
+    openocdVersion: String,
     includePicoSdkTools: Bool
   ) {
     self.sdkVersion = sdkVersion
@@ -30,6 +33,7 @@ public struct InstallRequest: Codable {
     self.cmakeVersion = cmakeVersion
     self.ninjaVersion = ninjaVersion
     self.picotoolVersion = picotoolVersion
+    self.openocdVersion = openocdVersion
     self.includePicoSdkTools = includePicoSdkTools
   }
 }
@@ -52,6 +56,7 @@ public struct InstallPlan: Codable {
   public let cmake: ComponentPlan
   public let ninja: ComponentPlan
   public let picotool: ComponentPlan
+  public let openocd: ComponentPlan
 
   public var prettyDescription: String {
     var lines: [String] = []
@@ -70,7 +75,7 @@ public struct InstallPlan: Codable {
   public var componentsInOrder: [ComponentPlan] {
     var all: [ComponentPlan] = [picoSDK, armToolchain]
     if let picoSdkTools { all.append(picoSdkTools) }
-    all.append(contentsOf: [ninja, cmake, picotool])
+    all.append(contentsOf: [ninja, cmake, picotool, openocd])
     return all
   }
 }

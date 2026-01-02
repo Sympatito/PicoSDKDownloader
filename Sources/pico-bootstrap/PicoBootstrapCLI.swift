@@ -51,6 +51,9 @@ extension PicoBootstrap {
     @Option(name: .long, help: "Picotool version tag, e.g. 2.2.0-a4 (no leading v).")
     var picotool: String
 
+    @Option(name: .long, help: "OpenOCD version, e.g. 0.12.0+dev")
+    var openocd: String
+
     @Option(name: .long, help: "Install pico-sdk-tools for the SDK version (best effort).")
     var includeSdkTools: Bool = true
 
@@ -67,6 +70,7 @@ extension PicoBootstrap {
         cmakeVersion: cmake,
         ninjaVersion: ninja,
         picotoolVersion: picotool,
+        openocdVersion: openocd,
         includePicoSdkTools: includeSdkTools
       )
 
@@ -99,6 +103,9 @@ extension PicoBootstrap {
       try await installer.installPicotool(plan: plan, root: common.rootURL)
       try await store.record(plan: plan, component: .picotool)
 
+      try await installer.installOpenOCD(plan: plan, root: common.rootURL)
+      try await store.record(plan: plan, component: .openocd)
+
       print("\nDone. Installed under: \(common.rootURL.path)")
     }
   }
@@ -125,6 +132,9 @@ extension PicoBootstrap {
     @Option(name: .long, help: "Picotool version, e.g. 2.2.0-a4")
     var picotool: String
 
+    @Option(name: .long, help: "OpenOCD version, e.g. 0.12.0+dev")
+    var openocd: String
+
     @Option(name: .long, help: "Resolve pico-sdk-tools for this SDK version if available.")
     var includeSdkTools: Bool = true
 
@@ -141,6 +151,7 @@ extension PicoBootstrap {
         cmakeVersion: cmake,
         ninjaVersion: ninja,
         picotoolVersion: picotool,
+        openocdVersion: openocd,
         includePicoSdkTools: includeSdkTools
       )
 
@@ -165,9 +176,10 @@ extension PicoBootstrap {
       case picotoolReleases
       case picoSdkToolsReleases
       case armToolchainReleases
+      case openocdReleases
     }
 
-    @Option(name: .long, help: "What to list: sdkTags | picotoolReleases | picoSdkToolsReleases | armToolchainReleases")
+    @Option(name: .long, help: "What to list: sdkTags | picotoolReleases | picoSdkToolsReleases | armToolchainReleases | openocdReleases")
     var kind: Kind
 
     @Option(name: .long, help: "Limit results (default 30)")
@@ -222,6 +234,11 @@ extension PicoBootstrap {
         for version in limitedVersions {
           print(version)
         }
+
+      case .openocdReleases:
+        // OpenOCD releases are available in pico-sdk-tools
+        // Currently only 0.12.0+dev is supported
+        print("0.12.0+dev")
       }
     }
   }

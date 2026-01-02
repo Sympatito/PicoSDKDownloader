@@ -43,6 +43,9 @@ public final class VersionResolver {
     // picotool: raspberrypi/picotool release
     let picotool = try await resolvePicotool(version: request.picotoolVersion)
 
+    // openocd: raspberrypi/pico-sdk-tools release
+    let openocd = try await resolveOpenOCD(version: request.openocdVersion)
+
     return InstallPlan(
       env: env,
       request: request,
@@ -51,7 +54,8 @@ public final class VersionResolver {
       picoSdkTools: picoSdkTools,
       cmake: cmake,
       ninja: ninja,
-      picotool: picotool
+      picotool: picotool,
+      openocd: openocd
     )
   }
 
@@ -269,6 +273,53 @@ public final class VersionResolver {
         return n.contains("aarch64") && n.contains("lin")
       case .macos:
         // macOS: picotool-X.X.X-mac.zip (universal binary)
+        return n.contains("mac")
+      }
+    }
+    return assets.first(where: matches)
+  }
+
+  private func resolveOpenOCD(version: String) async throws -> ComponentPlan {
+    // OpenOCD binaries are in pico-sdk-tools, similar to picotool
+    // Version mapping from pico-vscode: 0.12.0+dev -> v2.2.0-3
+    let openocdReleaseMapping: [String: String] = [
+      "0.12.0+dev": "v2.2.0-3"
+    ]
+    
+    let releaseVersion = openocdReleaseMapping[version] ?? "v\(version)-0"
+    let rel = try await gitHub.getReleaseByTag(owner: "raspberrypi", repo: "pico-sdk-tools", tag: releaseVersion)
+
+    guard let asset = pickOpenOCDAsset(release: rel, version: version) else {
+      throw PicoBootstrapError.notFound("No matching openocd asset for \(env.os)/\(env.arch) in pico-sdk-tools \(rel.tag_name)")
+    }
+
+    return ComponentPlan(
+      id: .openocd,
+      version: version,
+      installPathRelativeToRoot: "openocd/\(version)",
+      downloadURL: asset.browser_download_url,
+      archiveType: asset.name.hasSuffix(".zip") ? "zip" : (asset.name.hasSuffix(".tar.gz") ? "tar.gz" : "unknown"),
+      notes: "Resolved from raspberrypi/pico-sdk-tools \(rel.tag_name), asset \(asset.name)"
+    )
+  }
+
+  private func pickOpenOCDAsset(release: GitHubRelease, version: String) -> GitHubRelease.Asset? {
+    let assets = release.assets
+    func matches(_ a: GitHubRelease.Asset) -> Bool {
+      let n = a.name.lowercased()
+      if !(n.hasSuffix(".zip") || n.hasSuffix(".tar.gz")) { return false }
+      
+      // openocd assets are named: openocd-{version}-{arch}-{platform}.{ext}
+      // e.g., openocd-0.12.0+dev-x86_64-lin.tar.gz, openocd-0.12.0+dev-mac.zip
+      guard n.hasPrefix("openocd-\(version.lowercased())") else { return false }
+
+      switch env.os {
+      case .linux:
+        // Linux: openocd-X.X.X-{arch}-lin.tar.gz
+        if env.arch == .x86_64 { return n.contains("x86_64") && n.contains("lin") }
+        return n.contains("aarch64") && n.contains("lin")
+      case .macos:
+        // macOS: openocd-X.X.X-mac.zip (universal binary)
         return n.contains("mac")
       }
     }
