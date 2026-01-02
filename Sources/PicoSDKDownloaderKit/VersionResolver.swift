@@ -270,7 +270,8 @@ public final class VersionResolver {
       case .linux:
         // Linux: picotool-X.X.X-{arch}-lin.tar.gz
         if env.arch == .x86_64 { return n.contains("x86_64") && n.contains("lin") }
-        return n.contains("aarch64") && n.contains("lin")
+        if env.arch == .aarch64 { return n.contains("aarch64") && n.contains("lin") }
+        return false
       case .macos:
         // macOS: picotool-X.X.X-mac.zip (universal binary)
         return n.contains("mac")
@@ -282,6 +283,8 @@ public final class VersionResolver {
   private func resolveOpenOCD(version: String) async throws -> ComponentPlan {
     // OpenOCD binaries are in pico-sdk-tools, similar to picotool
     // Version mapping from pico-vscode: 0.12.0+dev -> v2.2.0-3
+    // To add new versions: check pico-vscode's OPENOCD_RELEASES constant in src/utils/download.mts
+    // and add the mapping here (version: pico-sdk-tools release tag)
     let openocdReleaseMapping: [String: String] = [
       "0.12.0+dev": "v2.2.0-3"
     ]
