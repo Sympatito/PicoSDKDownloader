@@ -7,16 +7,19 @@ import FoundationNetworking
 /// Mimics pico-vscode behavior: try remote fetch, fall back to bundled offline cache.
 final class ToolchainLoader {
   private let http: HTTPClient
+  private static let resourceName = "supportedToolchains"
+  private static let resourceExtension = "ini"
+  private static let resourceFilename = "\(resourceName).\(resourceExtension)"
   
   /// Remote URL for the supportedToolchains.ini (same as pico-vscode)
-  private static let remoteURL = URL(string: "https://raw.githubusercontent.com/raspberrypi/pico-vscode/main/data/supportedToolchains.ini")!
+  private static let remoteURL = URL(string: "https://raw.githubusercontent.com/raspberrypi/pico-vscode/refs/heads/main/data/0.18.0/supportedToolchains.ini")!
   
   init(http: HTTPClient) {
     self.http = http
   }
   
   /// Load toolchain metadata, trying remote first, then falling back to bundled resource.
-  func loadToolchainIndex() async -> ToolchainIndex {
+  func loadToolchainIndex() async throws -> ToolchainIndex {
     // Try remote fetch
     do {
       let (data, _) = try await http.get(Self.remoteURL)
@@ -25,38 +28,73 @@ final class ToolchainLoader {
         return ToolchainIndex(sections: parsed, source: .remote)
       }
     } catch {
-      // Remote fetch failed, will fall back to bundled
+      print("Failed to fetch remote supportedToolchains.ini: \(error)")
     }
     
     // Fall back to bundled resource
-    return loadBundledToolchainIndex()
+    return try loadBundledToolchainIndex()
   }
   
-  private func loadBundledToolchainIndex() -> ToolchainIndex {
-    // In SPM, resources are placed alongside the executable with a special name pattern
-    // For executable targets, we need to look for the .resources bundle
+  private func loadBundledToolchainIndex() throws -> ToolchainIndex {
+    var attempted: [String] = []
+    func tryLoad(from url: URL?) -> ToolchainIndex? {
+      guard let url else { return nil }
+      attempted.append(url.path)
+      guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+      let parsed = INIParser.parse(content)
+      return ToolchainIndex(sections: parsed, source: .bundledFallback)
+    }
     
-    // Get the path to the executable
+    #if SWIFT_PACKAGE
+    if let index = tryLoad(from: Bundle.module.url(forResource: Self.resourceName, withExtension: Self.resourceExtension)) {
+      return index
+    }
+    #endif
+    
+    if let index = tryLoad(from: Bundle.main.url(forResource: Self.resourceName, withExtension: Self.resourceExtension)) {
+      return index
+    }
+    
+    if let index = tryLoad(from: resourceURLNextToExecutable()) {
+      return index
+    }
+    
+    if let index = tryLoad(from: resourceURLInSourceTree()) {
+      return index
+    }
+
+    let paths = attempted.joined(separator: ", ")
+    throw PicoBootstrapError.notFound(
+      "Failed to load bundled supportedToolchains.ini (checked: \(paths))"
+    )
+  }
+  
+  private func resourceURLNextToExecutable() -> URL? {
     let executablePath = ProcessInfo.processInfo.arguments[0]
     let executableURL = URL(fileURLWithPath: executablePath)
     let executableDir = executableURL.deletingLastPathComponent()
+    let direct = executableDir.appendingPathComponent(Self.resourceFilename, isDirectory: false)
+    if FileManager.default.fileExists(atPath: direct.path) {
+      return direct
+    }
     
-    // Look for *.resources directories in the executable directory (non-recursive)
-    // Pattern: <target>_<module>.resources/ (e.g., pico-bootstrap_pico-bootstrap.resources)
     if let contents = try? FileManager.default.contentsOfDirectory(at: executableDir, includingPropertiesForKeys: [.isDirectoryKey]) {
-      for url in contents {
-        if url.lastPathComponent.hasSuffix(".resources") {
-          let iniURL = url.appendingPathComponent("supportedToolchains.ini")
-          if let content = try? String(contentsOf: iniURL, encoding: .utf8) {
-            let parsed = INIParser.parse(content)
-            return ToolchainIndex(sections: parsed, source: .bundledFallback)
-          }
+      for url in contents where url.lastPathComponent.hasSuffix(".resources") {
+        let iniURL = url.appendingPathComponent(Self.resourceFilename)
+        if FileManager.default.fileExists(atPath: iniURL.path) {
+          return iniURL
         }
       }
     }
-    
-    // If resource not found, return empty index
-    return ToolchainIndex(sections: [:], source: .bundledFallback)
+    return nil
+  }
+  
+  private func resourceURLInSourceTree() -> URL? {
+    let sourceDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+    let candidate = sourceDir
+      .appendingPathComponent("Resources", isDirectory: true)
+      .appendingPathComponent(Self.resourceFilename, isDirectory: false)
+    return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
   }
 }
 

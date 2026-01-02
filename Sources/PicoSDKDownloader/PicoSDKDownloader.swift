@@ -192,7 +192,7 @@ extension PicoBootstrap {
       case .armToolchainReleases:
         // Load from supportedToolchains.ini instead of GitHub releases
         let toolchainLoader = ToolchainLoader(http: http)
-        let index = await toolchainLoader.loadToolchainIndex()
+        let index = try await toolchainLoader.loadToolchainIndex()
         
         // Sort versions in descending order with proper version comparison
         // Version format: XX_Y_RelZ or XX_Y-YYYY_MM

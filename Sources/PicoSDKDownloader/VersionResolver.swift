@@ -75,7 +75,7 @@ final class VersionResolver {
 
   private func resolveArmToolchain(version: String) async throws -> ComponentPlan {
     // Load toolchain index from remote or bundled fallback
-    let index = await toolchainLoader.loadToolchainIndex()
+    let index = try await toolchainLoader.loadToolchainIndex()
     let platformKey = env.iniPlatformKey
     
     guard let downloadURL = index.url(for: version, platform: platformKey) else {
@@ -213,17 +213,16 @@ final class VersionResolver {
         if env.arch == .x86_64 { return n.contains("linux") && n.contains("x86_64") }
         return n.contains("linux") && (n.contains("aarch64") || n.contains("arm64"))
       case .macos:
-        // often "mac" or "osx"
-        if env.arch == .x86_64 { return (n.contains("mac") || n.contains("osx")) && n.contains("x86_64") }
-        return (n.contains("mac") || n.contains("osx")) && (n.contains("arm64") || n.contains("aarch64"))
+        // No differentiation between x86_64 and arm64 builds; both in same zip.
+        return (n.contains("mac") || n.contains("osx"))
       }
     }
     return assets.first(where: matches)
   }
 
   private func resolvePicotool(version: String) async throws -> ComponentPlan {
-    // picotool tags are usually "v2.2.0-a4" (with v), but you pass "2.2.0-a4" (like pico-vscode default).
-    let tag = version.hasPrefix("v") ? version : "v\(version)"
+    // picotool tags are usually "2.2.0-a4" (without v).
+    let tag = version
     let rel = try await gitHub.getReleaseByTag(owner: "raspberrypi", repo: "picotool", tag: tag)
 
     guard let asset = pickPicotoolAsset(release: rel) else {
