@@ -317,7 +317,8 @@ public final class VersionResolver {
       case .linux:
         // Linux: openocd-X.X.X-{arch}-lin.tar.gz
         if env.arch == .x86_64 { return n.contains("x86_64") && n.contains("lin") }
-        return n.contains("aarch64") && n.contains("lin")
+        if env.arch == .aarch64 { return n.contains("aarch64") && n.contains("lin") }
+        return false
       case .macos:
         // macOS: openocd-X.X.X-mac.zip (universal binary)
         return n.contains("mac")

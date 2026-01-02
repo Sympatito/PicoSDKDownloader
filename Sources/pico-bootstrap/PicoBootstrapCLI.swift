@@ -236,8 +236,9 @@ extension PicoBootstrap {
         }
 
       case .openocdReleases:
-        // OpenOCD releases are available in pico-sdk-tools
-        // Currently only 0.12.0+dev is supported
+        // OpenOCD releases are distributed via pico-sdk-tools
+        // Version mapping is maintained in VersionResolver.resolveOpenOCD()
+        // Currently supported versions from pico-vscode:
         print("0.12.0+dev")
       }
     }
