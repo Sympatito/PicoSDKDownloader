@@ -53,7 +53,7 @@ final class InstallManifestStore {
   private func loadOrCreate(env: HostEnvironment) throws -> Manifest {
     if FileManager.default.fileExists(atPath: manifestURL.path) {
       let data = try Data(contentsOf: manifestURL)
-      return try JSONDecoder.standard.decode(Manifest.self, from: data)
+      return try JSONDecoder().decode(Manifest.self, from: data)
     }
     return Manifest(
       installedAtISO8601: ISO8601DateFormatter().string(from: Date()),

@@ -7,15 +7,3 @@ extension JSONEncoder {
     return enc
   }
 }
-
-extension JSONDecoder {
-  static var standard: JSONDecoder {
-    JSONDecoder()
-  }
-}
-
-extension JSONEncoder {
-  func encode<T: Encodable>(_ value: T) throws -> Data {
-    try self.encode(value)
-  }
-}
