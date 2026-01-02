@@ -12,7 +12,11 @@ final class ToolchainLoader {
   private static let resourceFilename = "\(resourceName).\(resourceExtension)"
   
   /// Remote URL for the supportedToolchains.ini (same as pico-vscode)
-  private static let remoteURL = URL(string: "https://raw.githubusercontent.com/raspberrypi/pico-vscode/refs/heads/main/data/0.18.0/supportedToolchains.ini")!
+  /// This uses the GitHub Pages URL, not raw.githubusercontent.com
+  /// NOTE: The version (0.18.0) should match CURRENT_DATA_VERSION in pico-vscode's sharedConstants.mts
+  /// When pico-vscode updates this constant, update this URL accordingly.
+  /// See: https://github.com/raspberrypi/pico-vscode/blob/main/src/utils/sharedConstants.mts
+  private static let remoteURL = URL(string: "https://raspberrypi.github.io/pico-vscode/0.18.0/supportedToolchains.ini")!
   
   init(http: HTTPClient) {
     self.http = http

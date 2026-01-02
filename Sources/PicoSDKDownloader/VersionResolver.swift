@@ -210,23 +210,36 @@ final class VersionResolver {
 
       switch env.os {
       case .linux:
-        if env.arch == .x86_64 { return n.contains("linux") && n.contains("x86_64") }
-        return n.contains("linux") && (n.contains("aarch64") || n.contains("arm64"))
+        // Ninja doesn't differentiate by architecture - "ninja-linux.zip" works for both x86_64 and aarch64
+        // For arm64, there's a specific "ninja-linux-aarch64.zip" starting from some versions
+        if env.arch == .aarch64 {
+          return n == "ninja-linux-aarch64.zip" || (n == "ninja-linux.zip" && !assets.contains(where: { $0.name.lowercased() == "ninja-linux-aarch64.zip" }))
+        }
+        return n == "ninja-linux.zip"
       case .macos:
-        // No differentiation between x86_64 and arm64 builds; both in same zip.
-        return (n.contains("mac") || n.contains("osx"))
+        // macOS uses universal binary "ninja-mac.zip"
+        return n == "ninja-mac.zip"
       }
     }
     return assets.first(where: matches)
   }
 
   private func resolvePicotool(version: String) async throws -> ComponentPlan {
-    // picotool tags are usually "2.2.0-a4" (without v).
-    let tag = version
-    let rel = try await gitHub.getReleaseByTag(owner: "raspberrypi", repo: "picotool", tag: tag)
+    // picotool binaries are in pico-sdk-tools, not picotool repo
+    // Version mapping from pico-vscode: 2.2.0-a4 -> v2.2.0-3
+    let picotoolReleaseMapping: [String: String] = [
+      "2.0.0": "v2.0.0-5",
+      "2.1.0": "v2.1.0-0",
+      "2.1.1": "v2.1.1-1",
+      "2.2.0": "v2.2.0-0",
+      "2.2.0-a4": "v2.2.0-3"
+    ]
+    
+    let releaseVersion = picotoolReleaseMapping[version] ?? "v\(version)-0"
+    let rel = try await gitHub.getReleaseByTag(owner: "raspberrypi", repo: "pico-sdk-tools", tag: releaseVersion)
 
-    guard let asset = pickPicotoolAsset(release: rel) else {
-      throw PicoBootstrapError.notFound("No matching picotool asset for \(env.os)/\(env.arch) in \(rel.tag_name)")
+    guard let asset = pickPicotoolAsset(release: rel, version: version) else {
+      throw PicoBootstrapError.notFound("No matching picotool asset for \(env.os)/\(env.arch) in pico-sdk-tools \(rel.tag_name)")
     }
 
     return ComponentPlan(
@@ -235,23 +248,28 @@ final class VersionResolver {
       installPathRelativeToRoot: "picotool/\(version)",
       downloadURL: asset.browser_download_url,
       archiveType: asset.name.hasSuffix(".zip") ? "zip" : (asset.name.hasSuffix(".tar.gz") ? "tar.gz" : "unknown"),
-      notes: "Resolved from raspberrypi/picotool \(rel.tag_name), asset \(asset.name)"
+      notes: "Resolved from raspberrypi/pico-sdk-tools \(rel.tag_name), asset \(asset.name)"
     )
   }
 
-  private func pickPicotoolAsset(release: GitHubRelease) -> GitHubRelease.Asset? {
+  private func pickPicotoolAsset(release: GitHubRelease, version: String) -> GitHubRelease.Asset? {
     let assets = release.assets
     func matches(_ a: GitHubRelease.Asset) -> Bool {
       let n = a.name.lowercased()
       if !(n.hasSuffix(".zip") || n.hasSuffix(".tar.gz")) { return false }
+      
+      // picotool assets are named: picotool-{version}-{arch}-{platform}.{ext}
+      // e.g., picotool-2.2.0-a4-x86_64-lin.tar.gz, picotool-2.2.0-a4-mac.zip
+      guard n.hasPrefix("picotool-\(version.lowercased())") else { return false }
 
       switch env.os {
       case .linux:
-        if env.arch == .x86_64 { return n.contains("linux") && n.contains("x86_64") }
-        return n.contains("linux") && (n.contains("aarch64") || n.contains("arm64"))
+        // Linux: picotool-X.X.X-{arch}-lin.tar.gz
+        if env.arch == .x86_64 { return n.contains("x86_64") && n.contains("lin") }
+        return n.contains("aarch64") && n.contains("lin")
       case .macos:
-        if env.arch == .x86_64 { return (n.contains("mac") || n.contains("darwin") || n.contains("osx")) && n.contains("x86_64") }
-        return (n.contains("mac") || n.contains("darwin") || n.contains("osx")) && (n.contains("arm64") || n.contains("aarch64"))
+        // macOS: picotool-X.X.X-mac.zip (universal binary)
+        return n.contains("mac")
       }
     }
     return assets.first(where: matches)
