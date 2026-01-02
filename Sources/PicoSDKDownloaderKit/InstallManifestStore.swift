@@ -44,6 +44,8 @@ public final class InstallManifestStore {
       m.components[.ninja] = entry(for: plan.ninja)
     case .picotool:
       m.components[.picotool] = entry(for: plan.picotool)
+    case .openocd:
+      m.components[.openocd] = entry(for: plan.openocd)
     }
 
     let data = try JSONEncoder.pretty.encode(m)

@@ -151,6 +151,30 @@ public final class Installer {
     try Extractor.extract(archive: archive, to: dest)
   }
 
+  public func installOpenOCD(plan: InstallPlan, root: URL) async throws {
+    let c = plan.openocd
+    let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
+    if FileManager.default.fileExists(atPath: dest.path) {
+      print("OpenOCD already exists at \(dest.path) (skipping)")
+      return
+    }
+    guard let urlStr = c.downloadURL, let url = URL(string: urlStr) else {
+      throw PicoBootstrapError.message("Missing openocd download URL in plan")
+    }
+
+    let tmp = try TempDir.create(prefix: "pico-bootstrap-openocd")
+    defer { try? tmp.cleanup() }
+
+    let ext = c.archiveType ?? "zip"
+    let archive = tmp.url.appendingPathComponent("openocd.\(ext)")
+    print("Downloading OpenOCD: \(urlStr)")
+    try await http.download(url, to: archive)
+
+    try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+    print("Extracting OpenOCD into \(dest.path)")
+    try Extractor.extract(archive: archive, to: dest)
+  }
+
   private func flattenSingleDirectoryIfNeeded(at directory: URL) throws {
     let fm = FileManager.default
     let contents = try fm.contentsOfDirectory(
