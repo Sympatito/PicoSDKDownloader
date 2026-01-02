@@ -2,7 +2,7 @@ import Foundation
 
 /// Lightweight record of what got installed and from which resolved plan.
 /// This is deliberately simple but gives you parity with "what versions are installed" tracking.
-final class InstallManifestStore {
+public final class InstallManifestStore {
   struct Manifest: Codable {
     var installedAtISO8601: String
     var env: HostEnvironment
@@ -18,11 +18,11 @@ final class InstallManifestStore {
   private let root: URL
   private var manifestURL: URL { root.appendingPathComponent("pico-bootstrap-manifest.json") }
 
-  init(root: URL) {
+  public init(root: URL) {
     self.root = root
   }
 
-  func record(plan: InstallPlan, component: ComponentId) async throws {
+  public func record(plan: InstallPlan, component: ComponentId) async throws {
     var m = try loadOrCreate(env: plan.env)
     let now = ISO8601DateFormatter().string(from: Date())
     m.installedAtISO8601 = now

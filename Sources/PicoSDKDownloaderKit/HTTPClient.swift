@@ -3,14 +3,14 @@ import Foundation
 import FoundationNetworking
 #endif
 
-final class HTTPClient {
+public final class HTTPClient {
   private let githubToken: String?
 
-  init(githubToken: String?) {
+  public init(githubToken: String?) {
     self.githubToken = (githubToken?.isEmpty == false) ? githubToken : nil
   }
 
-  func get(_ url: URL, headers: [String: String] = [:]) async throws -> (Data, HTTPURLResponse) {
+  public func get(_ url: URL, headers: [String: String] = [:]) async throws -> (Data, HTTPURLResponse) {
     let req = makeRequest(url: url, headers: headers)
 
     let (data, resp) = try await URLSession.shared.data(for: req)
@@ -23,7 +23,7 @@ final class HTTPClient {
     return (data, http)
   }
 
-  func download(_ url: URL, to dest: URL) async throws {
+  public func download(_ url: URL, to dest: URL) async throws {
     try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
 
     let req = makeRequest(url: url)

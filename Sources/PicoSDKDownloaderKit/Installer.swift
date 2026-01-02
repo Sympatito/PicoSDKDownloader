@@ -1,15 +1,15 @@
 import Foundation
 
-final class Installer {
+public final class Installer {
   private let env: HostEnvironment
   private let http: HTTPClient
 
-  init(env: HostEnvironment, http: HTTPClient) {
+  public init(env: HostEnvironment, http: HTTPClient) {
     self.env = env
     self.http = http
   }
 
-  func installPicoSDK(plan: InstallPlan, root: URL) async throws {
+  public func installPicoSDK(plan: InstallPlan, root: URL) async throws {
     let dest = root.appendingPathComponent(plan.picoSDK.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
       print("Pico SDK already exists at \(dest.path) (skipping)")
@@ -22,7 +22,7 @@ final class Installer {
     try Shell.run("git", ["clone", "--depth", "1", "--branch", plan.request.sdkVersion, "https://github.com/raspberrypi/pico-sdk.git", dest.path])
   }
 
-  func installArmToolchain(plan: InstallPlan, root: URL) async throws {
+  public func installArmToolchain(plan: InstallPlan, root: URL) async throws {
     let c = plan.armToolchain
     let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
@@ -46,7 +46,7 @@ final class Installer {
     try flattenSingleDirectoryIfNeeded(at: dest)
   }
 
-  func installPicoSdkTools(plan: InstallPlan, root: URL) async throws {
+  public func installPicoSdkTools(plan: InstallPlan, root: URL) async throws {
     guard let c = plan.picoSdkTools else { return }
     let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
@@ -70,7 +70,7 @@ final class Installer {
     try Extractor.extract(archive: archive, to: dest)
   }
 
-  func installCMake(plan: InstallPlan, root: URL) async throws {
+  public func installCMake(plan: InstallPlan, root: URL) async throws {
     let c = plan.cmake
     let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
@@ -104,7 +104,7 @@ final class Installer {
     }
   }
 
-  func installNinja(plan: InstallPlan, root: URL) async throws {
+  public func installNinja(plan: InstallPlan, root: URL) async throws {
     let c = plan.ninja
     let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
@@ -127,7 +127,7 @@ final class Installer {
     try Extractor.extract(archive: archive, to: dest)
   }
 
-  func installPicotool(plan: InstallPlan, root: URL) async throws {
+  public func installPicotool(plan: InstallPlan, root: URL) async throws {
     let c = plan.picotool
     let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {

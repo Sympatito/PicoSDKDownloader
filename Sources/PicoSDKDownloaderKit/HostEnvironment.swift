@@ -1,13 +1,18 @@
 import Foundation
 
-struct HostEnvironment: Codable {
-  enum OS: String, Codable { case macos, linux }
-  enum Arch: String, Codable { case x86_64, aarch64 }
+public struct HostEnvironment: Codable {
+  public enum OS: String, Codable { case macos, linux }
+  public enum Arch: String, Codable { case x86_64, aarch64 }
 
-  let os: OS
-  let arch: Arch
+  public let os: OS
+  public let arch: Arch
 
-  static func detect() throws -> HostEnvironment {
+  public init(os: OS, arch: Arch) {
+    self.os = os
+    self.arch = arch
+  }
+
+  public static func detect() throws -> HostEnvironment {
     #if os(macOS)
     let os: OS = .macos
     #elseif os(Linux)

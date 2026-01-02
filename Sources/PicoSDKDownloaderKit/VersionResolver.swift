@@ -4,18 +4,18 @@ import Foundation
 /// This is the reusable piece you can integrate into a UI to:
 /// - resolve component versions
 /// - discover what's available
-final class VersionResolver {
+public final class VersionResolver {
   private let env: HostEnvironment
   private let gitHub: GitHubClient
   private let toolchainLoader: ToolchainLoader
 
-  init(env: HostEnvironment, gitHub: GitHubClient, toolchainLoader: ToolchainLoader) {
+  public init(env: HostEnvironment, gitHub: GitHubClient, toolchainLoader: ToolchainLoader) {
     self.env = env
     self.gitHub = gitHub
     self.toolchainLoader = toolchainLoader
   }
 
-  func resolve(request: InstallRequest) async throws -> InstallPlan {
+  public func resolve(request: InstallRequest) async throws -> InstallPlan {
     // Pico SDK: git tag (no archive URL needed)
     let picoSDK = ComponentPlan(
       id: .picoSDK,

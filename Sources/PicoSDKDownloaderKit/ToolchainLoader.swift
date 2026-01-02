@@ -5,7 +5,7 @@ import FoundationNetworking
 
 /// Loads ARM toolchain metadata from supportedToolchains.ini.
 /// Mimics pico-vscode behavior: try remote fetch, fall back to bundled offline cache.
-final class ToolchainLoader {
+public final class ToolchainLoader {
   private let http: HTTPClient
   private static let resourceName = "supportedToolchains"
   private static let resourceExtension = "ini"
@@ -18,12 +18,12 @@ final class ToolchainLoader {
   /// See: https://github.com/raspberrypi/pico-vscode/blob/main/src/utils/sharedConstants.mts
   private static let remoteURL = URL(string: "https://raspberrypi.github.io/pico-vscode/0.18.0/supportedToolchains.ini")!
   
-  init(http: HTTPClient) {
+  public init(http: HTTPClient) {
     self.http = http
   }
   
   /// Load toolchain metadata, trying remote first, then falling back to bundled resource.
-  func loadToolchainIndex() async throws -> ToolchainIndex {
+  public func loadToolchainIndex() async throws -> ToolchainIndex {
     // Try remote fetch
     do {
       let (data, _) = try await http.get(Self.remoteURL)
@@ -103,22 +103,22 @@ final class ToolchainLoader {
 }
 
 /// Represents the parsed toolchain index with metadata about where it came from.
-struct ToolchainIndex {
-  enum Source {
+public struct ToolchainIndex {
+  public enum Source {
     case remote
     case bundledFallback
   }
   
-  let sections: [String: [String: String]]
-  let source: Source
+  public let sections: [String: [String: String]]
+  public let source: Source
   
   /// Get download URL for a specific version and platform key.
   /// Platform key format: darwin_arm64, darwin_x64, linux_arm64, linux_x64
-  func url(for version: String, platform: String) -> String? {
+  public func url(for version: String, platform: String) -> String? {
     return sections[version]?[platform]
   }
   
-  var isRemote: Bool {
+  public var isRemote: Bool {
     return source == .remote
   }
 }
@@ -126,7 +126,7 @@ struct ToolchainIndex {
 extension HostEnvironment {
   /// Map HostEnvironment to INI platform key.
   /// Format: darwin_arm64, darwin_x64, linux_arm64, linux_x64
-  var iniPlatformKey: String {
+  public var iniPlatformKey: String {
     let osPrefix: String
     switch os {
     case .macos: osPrefix = "darwin"

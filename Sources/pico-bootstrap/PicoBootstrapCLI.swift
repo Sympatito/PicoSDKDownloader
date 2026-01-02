@@ -1,5 +1,6 @@
 import Foundation
 import ArgumentParser
+import PicoSDKDownloaderKit
 
 @main
 struct PicoBootstrap: AsyncParsableCommand {
