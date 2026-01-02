@@ -1,0 +1,40 @@
+name: Verify
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Verify resolve command
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "5.9"
+      
+      - name: Build
+        run: swift build
+      
+      - name: Run resolve command
+        run: |
+          swift run pico-bootstrap resolve \
+            --sdk 2.2.0 \
+            --toolchain 14_2_Rel1 \
+            --cmake 3.31.5 \
+            --ninja 1.12.1 \
+            --picotool 2.2.0-a4 \
+            --include-sdk-tools false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
