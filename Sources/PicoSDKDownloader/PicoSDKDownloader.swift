@@ -197,18 +197,23 @@ extension PicoBootstrap {
         // Sort versions in descending order with proper version comparison
         // Version format: XX_Y_RelZ or XX_Y-YYYY_MM
         let versions = Array(index.sections.keys).sorted { v1, v2 in
-          // Extract major version numbers for comparison
+          // Extract numeric parts for comparison
           let v1Parts = v1.split(separator: "_").compactMap { Int($0) }
           let v2Parts = v2.split(separator: "_").compactMap { Int($0) }
           
-          // Compare numeric parts
+          // Compare numeric parts up to the minimum count
           for i in 0..<min(v1Parts.count, v2Parts.count) {
             if v1Parts[i] != v2Parts[i] {
               return v1Parts[i] > v2Parts[i]
             }
           }
           
-          // If numeric parts are equal, fall back to string comparison
+          // If all compared parts are equal, longer version (more parts) is considered newer
+          if v1Parts.count != v2Parts.count {
+            return v1Parts.count > v2Parts.count
+          }
+          
+          // If numeric parts are identical, fall back to string comparison
           return v1 > v2
         }
         
