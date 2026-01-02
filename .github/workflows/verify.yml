@@ -10,12 +10,9 @@ on:
 jobs:
   verify:
     name: Verify resolve command
-    runs-on: ${{ matrix.os }}
+    runs-on: self-hosted
     permissions:
       contents: read
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
     
     steps:
       - name: Checkout code
