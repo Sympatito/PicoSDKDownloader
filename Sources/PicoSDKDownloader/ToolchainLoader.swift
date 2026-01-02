@@ -41,14 +41,18 @@ final class ToolchainLoader {
     let executableURL = URL(fileURLWithPath: executablePath)
     let executableDir = executableURL.deletingLastPathComponent()
     
-    // Check for resources bundle in the same directory as executable
-    // Pattern: <target>_<module>.resources/
-    let resourcesBundleName = "pico-bootstrap_pico-bootstrap.resources"
-    let resourcesURL = executableDir.appendingPathComponent(resourcesBundleName).appendingPathComponent("supportedToolchains.ini")
-    
-    if let content = try? String(contentsOf: resourcesURL, encoding: .utf8) {
-      let parsed = INIParser.parse(content)
-      return ToolchainIndex(sections: parsed, source: .bundledFallback)
+    // Try to find the resources bundle by searching for *.resources directories
+    // Pattern: <target>_<module>.resources/ (e.g., pico-bootstrap_pico-bootstrap.resources)
+    if let enumerator = FileManager.default.enumerator(at: executableDir, includingPropertiesForKeys: [.isDirectoryKey]) {
+      for case let url as URL in enumerator {
+        if url.lastPathComponent.hasSuffix(".resources") {
+          let iniURL = url.appendingPathComponent("supportedToolchains.ini")
+          if let content = try? String(contentsOf: iniURL, encoding: .utf8) {
+            let parsed = INIParser.parse(content)
+            return ToolchainIndex(sections: parsed, source: .bundledFallback)
+          }
+        }
+      }
     }
     
     // If resource not found, return empty index

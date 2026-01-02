@@ -57,6 +57,22 @@ final class VersionResolver {
 
   // MARK: - Resolution helpers
 
+  private func detectArchiveType(from url: String) -> String {
+    if url.hasSuffix(".tar.xz") {
+      return "tar.xz"
+    } else if url.hasSuffix(".tar.gz") {
+      return "tar.gz"
+    } else if url.hasSuffix(".tar.bz2") {
+      return "tar.bz2"
+    } else if url.hasSuffix(".pkg") {
+      return "pkg"
+    } else if url.hasSuffix(".zip") {
+      return "zip"
+    } else {
+      return "unknown"
+    }
+  }
+
   private func resolveArmToolchain(version: String) async throws -> ComponentPlan {
     // Load toolchain index from remote or bundled fallback
     let index = await toolchainLoader.loadToolchainIndex()
@@ -66,21 +82,9 @@ final class VersionResolver {
       throw PicoBootstrapError.notFound("ARM toolchain version \(version) not found for platform \(platformKey) in supportedToolchains.ini")
     }
     
-    // Determine archive type from URL
-    let archiveType: String
-    if downloadURL.hasSuffix(".tar.xz") {
-      archiveType = "tar.xz"
-    } else if downloadURL.hasSuffix(".tar.gz") {
-      archiveType = "tar.gz"
-    } else if downloadURL.hasSuffix(".tar.bz2") {
-      archiveType = "tar.bz2"
-    } else if downloadURL.hasSuffix(".pkg") {
-      archiveType = "pkg"
-    } else {
-      archiveType = "unknown"
-    }
-    
+    let archiveType = detectArchiveType(from: downloadURL)
     let source = index.isRemote ? "remote supportedToolchains.ini" : "bundled supportedToolchains.ini (offline cache)"
+    
     return ComponentPlan(
       id: .armToolchain,
       version: version,
