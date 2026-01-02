@@ -97,11 +97,17 @@ bundle to match what pico-vscode expects.
 
 ## How resolution works
 
-`VersionResolver` hits the official GitHub repositories (ARM, Kitware,
-raspberrypi, ninja-build) to pick the correct asset for the host OS/arch,
-falling back across common tag/filename variations. Optional pico-sdk-tools
-support is best-effort—if a matching release asset cannot be found for the
-requested SDK version the component is silently skipped.
+`VersionResolver` resolves component download URLs for the host OS/arch:
+
+- **ARM toolchain**: Resolved via `supportedToolchains.ini` (same approach as
+  pico-vscode). The CLI attempts to fetch the latest INI from GitHub, falling
+  back to a bundled offline cache when the remote fetch fails. This avoids
+  unreliable GitHub release tag lookups for ARM toolchains.
+- **Other components** (CMake, Ninja, picotool): Resolved from official GitHub
+  repositories (Kitware, ninja-build, raspberrypi), picking the correct asset
+  for the host OS/arch and falling back across common tag/filename variations.
+- **pico-sdk-tools**: Best-effort resolution from raspberrypi/pico-sdk-tools;
+  silently skipped if no matching release asset is found.
 
 If a tag, release, or platform-specific asset cannot be found the command exits
 with a descriptive `PicoBootstrapError`, making it easy to surface failures to

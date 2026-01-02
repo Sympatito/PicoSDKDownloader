@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 final class HTTPClient {
   private let githubToken: String?
@@ -8,7 +11,7 @@ final class HTTPClient {
   }
 
   func get(_ url: URL, headers: [String: String] = [:]) async throws -> (Data, HTTPURLResponse) {
-    var req = makeRequest(url: url, headers: headers)
+    let req = makeRequest(url: url, headers: headers)
 
     let (data, resp) = try await URLSession.shared.data(for: req)
     guard let http = resp as? HTTPURLResponse else {
@@ -23,7 +26,7 @@ final class HTTPClient {
   func download(_ url: URL, to dest: URL) async throws {
     try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
 
-    var req = makeRequest(url: url)
+    let req = makeRequest(url: url)
     let (tmp, resp) = try await URLSession.shared.download(for: req)
     guard let http = resp as? HTTPURLResponse else {
       throw PicoBootstrapError.http("Non-HTTP response for \(url)")

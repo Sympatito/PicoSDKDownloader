@@ -7,10 +7,12 @@ import Foundation
 final class VersionResolver {
   private let env: HostEnvironment
   private let gitHub: GitHubClient
+  private let toolchainLoader: ToolchainLoader
 
-  init(env: HostEnvironment, gitHub: GitHubClient) {
+  init(env: HostEnvironment, gitHub: GitHubClient, toolchainLoader: ToolchainLoader) {
     self.env = env
     self.gitHub = gitHub
+    self.toolchainLoader = toolchainLoader
   }
 
   func resolve(request: InstallRequest) async throws -> InstallPlan {
@@ -24,10 +26,8 @@ final class VersionResolver {
       notes: "Installed via git clone + checkout tag \(request.sdkVersion)"
     )
 
-    // ARM toolchain: best-effort asset selection from ARM-software/toolchain-gnu-bare-metal releases.
-    // We accept request.armToolchainVersion in underscore format, but ARM tags use dotted form (commonly).
-    let toolchainTagCandidates = toolchainTagCandidates(from: request.armToolchainVersion)
-    let toolchain = try await resolveArmToolchain(version: request.armToolchainVersion, tagCandidates: toolchainTagCandidates)
+    // ARM toolchain: resolve from supportedToolchains.ini (remote + bundled fallback)
+    let toolchain = try await resolveArmToolchain(version: request.armToolchainVersion)
 
     // pico-sdk-tools: try to resolve from raspberrypi/pico-sdk-tools; tag naming varies, so we search.
     let picoSdkTools = request.includePicoSdkTools
@@ -57,65 +57,42 @@ final class VersionResolver {
 
   // MARK: - Resolution helpers
 
-  private func toolchainTagCandidates(from underscore: String) -> [String] {
-    // 14_2_Rel1 -> 14.2.Rel1 (common display) + some typical tag forms
-    let dotted = underscore.replacingOccurrences(of: "_", with: ".")
-    // Many ARM repos use tags like "14.2.rel1" or "14.2.Rel1" (varies)
-    let lowerRel = dotted.replacingOccurrences(of: "Rel", with: "rel")
-    return [
-      dotted,
-      lowerRel,
-      "v\(dotted)",
-      "v\(lowerRel)"
-    ]
+  private func detectArchiveType(from url: String) -> String {
+    if url.hasSuffix(".tar.xz") {
+      return "tar.xz"
+    } else if url.hasSuffix(".tar.gz") {
+      return "tar.gz"
+    } else if url.hasSuffix(".tar.bz2") {
+      return "tar.bz2"
+    } else if url.hasSuffix(".pkg") {
+      return "pkg"
+    } else if url.hasSuffix(".zip") {
+      return "zip"
+    } else {
+      return "unknown"
+    }
   }
 
-  private func resolveArmToolchain(version: String, tagCandidates: [String]) async throws -> ComponentPlan {
-    // Try candidates until a tag works.
-    var lastErr: Error?
-    for tag in tagCandidates {
-      do {
-        let rel = try await gitHub.getReleaseByTag(owner: "ARM-software", repo: "toolchain-gnu-bare-metal", tag: tag)
-        if let asset = pickArmToolchainAsset(release: rel) {
-          return ComponentPlan(
-            id: .armToolchain,
-            version: version,
-            installPathRelativeToRoot: "toolchain/\(version)",
-            downloadURL: asset.browser_download_url,
-            archiveType: asset.name.hasSuffix(".tar.xz") ? "tar.xz" : (asset.name.hasSuffix(".tar.gz") ? "tar.gz" : "unknown"),
-            notes: "Resolved from tag \(rel.tag_name), asset \(asset.name)"
-          )
-        }
-        throw PicoBootstrapError.notFound("No matching toolchain asset in release \(rel.tag_name)")
-      } catch {
-        lastErr = error
-      }
+  private func resolveArmToolchain(version: String) async throws -> ComponentPlan {
+    // Load toolchain index from remote or bundled fallback
+    let index = try await toolchainLoader.loadToolchainIndex()
+    let platformKey = env.iniPlatformKey
+    
+    guard let downloadURL = index.url(for: version, platform: platformKey) else {
+      throw PicoBootstrapError.notFound("ARM toolchain version \(version) not found for platform \(platformKey) in supportedToolchains.ini")
     }
-    throw lastErr ?? PicoBootstrapError.notFound("Could not resolve ARM toolchain release for \(version)")
-  }
-
-  private func pickArmToolchainAsset(release: GitHubRelease) -> GitHubRelease.Asset? {
-    // ARM toolchain assets often include strings like:
-    // - x86_64-linux / aarch64-linux / darwin-x86_64 / darwin-arm64
-    // We pick a tar archive that matches OS/arch.
-    let assets = release.assets
-
-    func matches(_ a: GitHubRelease.Asset) -> Bool {
-      let n = a.name.lowercased()
-      guard n.hasSuffix(".tar.xz") || n.hasSuffix(".tar.gz") else { return false }
-
-      switch env.os {
-      case .linux:
-        if env.arch == .x86_64 { return n.contains("x86_64") && n.contains("linux") }
-        return n.contains("aarch64") && n.contains("linux")
-      case .macos:
-        // Some toolchain releases might not ship macOS; if not found, fail.
-        if env.arch == .x86_64 { return n.contains("darwin") && n.contains("x86_64") }
-        return n.contains("darwin") && (n.contains("arm64") || n.contains("aarch64"))
-      }
-    }
-
-    return assets.first(where: matches)
+    
+    let archiveType = detectArchiveType(from: downloadURL)
+    let source = index.isRemote ? "remote supportedToolchains.ini" : "bundled supportedToolchains.ini (offline cache)"
+    
+    return ComponentPlan(
+      id: .armToolchain,
+      version: version,
+      installPathRelativeToRoot: "toolchain/\(version)",
+      downloadURL: downloadURL,
+      archiveType: archiveType,
+      notes: "Resolved from \(source), platform \(platformKey)"
+    )
   }
 
   private func resolvePicoSdkTools(forSDK sdkVersion: String) async throws -> ComponentPlan? {
@@ -233,24 +210,36 @@ final class VersionResolver {
 
       switch env.os {
       case .linux:
-        if env.arch == .x86_64 { return n.contains("linux") && n.contains("x86_64") }
-        return n.contains("linux") && (n.contains("aarch64") || n.contains("arm64"))
+        // Ninja doesn't differentiate by architecture - "ninja-linux.zip" works for both x86_64 and aarch64
+        // For arm64, there's a specific "ninja-linux-aarch64.zip" starting from some versions
+        if env.arch == .aarch64 {
+          return n == "ninja-linux-aarch64.zip" || (n == "ninja-linux.zip" && !assets.contains(where: { $0.name.lowercased() == "ninja-linux-aarch64.zip" }))
+        }
+        return n == "ninja-linux.zip"
       case .macos:
-        // often "mac" or "osx"
-        if env.arch == .x86_64 { return (n.contains("mac") || n.contains("osx")) && n.contains("x86_64") }
-        return (n.contains("mac") || n.contains("osx")) && (n.contains("arm64") || n.contains("aarch64"))
+        // macOS uses universal binary "ninja-mac.zip"
+        return n == "ninja-mac.zip"
       }
     }
     return assets.first(where: matches)
   }
 
   private func resolvePicotool(version: String) async throws -> ComponentPlan {
-    // picotool tags are usually "v2.2.0-a4" (with v), but you pass "2.2.0-a4" (like pico-vscode default).
-    let tag = version.hasPrefix("v") ? version : "v\(version)"
-    let rel = try await gitHub.getReleaseByTag(owner: "raspberrypi", repo: "picotool", tag: tag)
+    // picotool binaries are in pico-sdk-tools, not picotool repo
+    // Version mapping from pico-vscode: 2.2.0-a4 -> v2.2.0-3
+    let picotoolReleaseMapping: [String: String] = [
+      "2.0.0": "v2.0.0-5",
+      "2.1.0": "v2.1.0-0",
+      "2.1.1": "v2.1.1-1",
+      "2.2.0": "v2.2.0-0",
+      "2.2.0-a4": "v2.2.0-3"
+    ]
+    
+    let releaseVersion = picotoolReleaseMapping[version] ?? "v\(version)-0"
+    let rel = try await gitHub.getReleaseByTag(owner: "raspberrypi", repo: "pico-sdk-tools", tag: releaseVersion)
 
-    guard let asset = pickPicotoolAsset(release: rel) else {
-      throw PicoBootstrapError.notFound("No matching picotool asset for \(env.os)/\(env.arch) in \(rel.tag_name)")
+    guard let asset = pickPicotoolAsset(release: rel, version: version) else {
+      throw PicoBootstrapError.notFound("No matching picotool asset for \(env.os)/\(env.arch) in pico-sdk-tools \(rel.tag_name)")
     }
 
     return ComponentPlan(
@@ -259,23 +248,28 @@ final class VersionResolver {
       installPathRelativeToRoot: "picotool/\(version)",
       downloadURL: asset.browser_download_url,
       archiveType: asset.name.hasSuffix(".zip") ? "zip" : (asset.name.hasSuffix(".tar.gz") ? "tar.gz" : "unknown"),
-      notes: "Resolved from raspberrypi/picotool \(rel.tag_name), asset \(asset.name)"
+      notes: "Resolved from raspberrypi/pico-sdk-tools \(rel.tag_name), asset \(asset.name)"
     )
   }
 
-  private func pickPicotoolAsset(release: GitHubRelease) -> GitHubRelease.Asset? {
+  private func pickPicotoolAsset(release: GitHubRelease, version: String) -> GitHubRelease.Asset? {
     let assets = release.assets
     func matches(_ a: GitHubRelease.Asset) -> Bool {
       let n = a.name.lowercased()
       if !(n.hasSuffix(".zip") || n.hasSuffix(".tar.gz")) { return false }
+      
+      // picotool assets are named: picotool-{version}-{arch}-{platform}.{ext}
+      // e.g., picotool-2.2.0-a4-x86_64-lin.tar.gz, picotool-2.2.0-a4-mac.zip
+      guard n.hasPrefix("picotool-\(version.lowercased())") else { return false }
 
       switch env.os {
       case .linux:
-        if env.arch == .x86_64 { return n.contains("linux") && n.contains("x86_64") }
-        return n.contains("linux") && (n.contains("aarch64") || n.contains("arm64"))
+        // Linux: picotool-X.X.X-{arch}-lin.tar.gz
+        if env.arch == .x86_64 { return n.contains("x86_64") && n.contains("lin") }
+        return n.contains("aarch64") && n.contains("lin")
       case .macos:
-        if env.arch == .x86_64 { return (n.contains("mac") || n.contains("darwin") || n.contains("osx")) && n.contains("x86_64") }
-        return (n.contains("mac") || n.contains("darwin") || n.contains("osx")) && (n.contains("arm64") || n.contains("aarch64"))
+        // macOS: picotool-X.X.X-mac.zip (universal binary)
+        return n.contains("mac")
       }
     }
     return assets.first(where: matches)

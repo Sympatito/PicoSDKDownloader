@@ -57,8 +57,9 @@ extension PicoBootstrap {
       let env = try HostEnvironment.detect()
       let http = HTTPClient(githubToken: common.githubToken)
       let gh = GitHubClient(http: http)
+      let toolchainLoader = ToolchainLoader(http: http)
 
-      let resolver = VersionResolver(env: env, gitHub: gh)
+      let resolver = VersionResolver(env: env, gitHub: gh, toolchainLoader: toolchainLoader)
       let req = InstallRequest(
         sdkVersion: sdk,
         armToolchainVersion: toolchain,
@@ -130,7 +131,8 @@ extension PicoBootstrap {
       let env = try HostEnvironment.detect()
       let http = HTTPClient(githubToken: common.githubToken)
       let gh = GitHubClient(http: http)
-      let resolver = VersionResolver(env: env, gitHub: gh)
+      let toolchainLoader = ToolchainLoader(http: http)
+      let resolver = VersionResolver(env: env, gitHub: gh, toolchainLoader: toolchainLoader)
 
       let req = InstallRequest(
         sdkVersion: sdk,
@@ -188,8 +190,37 @@ extension PicoBootstrap {
         for r in rels { print(r.tag_name) }
 
       case .armToolchainReleases:
-        let rels = try await gh.listReleases(owner: "ARM-software", repo: "toolchain-gnu-bare-metal", limit: limit)
-        for r in rels { print(r.tag_name) }
+        // Load from supportedToolchains.ini instead of GitHub releases
+        let toolchainLoader = ToolchainLoader(http: http)
+        let index = try await toolchainLoader.loadToolchainIndex()
+        
+        // Sort versions in descending order with proper version comparison
+        // Version format: XX_Y_RelZ or XX_Y-YYYY_MM
+        let versions = Array(index.sections.keys).sorted { v1, v2 in
+          // Extract numeric parts for comparison
+          let v1Parts = v1.split(separator: "_").compactMap { Int($0) }
+          let v2Parts = v2.split(separator: "_").compactMap { Int($0) }
+          
+          // Compare numeric parts up to the minimum count
+          for i in 0..<min(v1Parts.count, v2Parts.count) {
+            if v1Parts[i] != v2Parts[i] {
+              return v1Parts[i] > v2Parts[i]
+            }
+          }
+          
+          // If all compared parts are equal, longer version (more parts) is considered newer
+          if v1Parts.count != v2Parts.count {
+            return v1Parts.count > v2Parts.count
+          }
+          
+          // If numeric parts are identical, fall back to string comparison
+          return v1 > v2
+        }
+        
+        let limitedVersions = limit > 0 ? Array(versions.prefix(limit)) : versions
+        for version in limitedVersions {
+          print(version)
+        }
       }
     }
   }
