@@ -7,10 +7,12 @@ import Foundation
 final class VersionResolver {
   private let env: HostEnvironment
   private let gitHub: GitHubClient
+  private let toolchainLoader: ToolchainLoader
 
-  init(env: HostEnvironment, gitHub: GitHubClient) {
+  init(env: HostEnvironment, gitHub: GitHubClient, toolchainLoader: ToolchainLoader) {
     self.env = env
     self.gitHub = gitHub
+    self.toolchainLoader = toolchainLoader
   }
 
   func resolve(request: InstallRequest) async throws -> InstallPlan {
@@ -24,10 +26,8 @@ final class VersionResolver {
       notes: "Installed via git clone + checkout tag \(request.sdkVersion)"
     )
 
-    // ARM toolchain: best-effort asset selection from ARM-software/toolchain-gnu-bare-metal releases.
-    // We accept request.armToolchainVersion in underscore format, but ARM tags use dotted form (commonly).
-    let toolchainTagCandidates = toolchainTagCandidates(from: request.armToolchainVersion)
-    let toolchain = try await resolveArmToolchain(version: request.armToolchainVersion, tagCandidates: toolchainTagCandidates)
+    // ARM toolchain: resolve from supportedToolchains.ini (remote + bundled fallback)
+    let toolchain = try await resolveArmToolchain(version: request.armToolchainVersion)
 
     // pico-sdk-tools: try to resolve from raspberrypi/pico-sdk-tools; tag naming varies, so we search.
     let picoSdkTools = request.includePicoSdkTools
@@ -57,65 +57,38 @@ final class VersionResolver {
 
   // MARK: - Resolution helpers
 
-  private func toolchainTagCandidates(from underscore: String) -> [String] {
-    // 14_2_Rel1 -> 14.2.Rel1 (common display) + some typical tag forms
-    let dotted = underscore.replacingOccurrences(of: "_", with: ".")
-    // Many ARM repos use tags like "14.2.rel1" or "14.2.Rel1" (varies)
-    let lowerRel = dotted.replacingOccurrences(of: "Rel", with: "rel")
-    return [
-      dotted,
-      lowerRel,
-      "v\(dotted)",
-      "v\(lowerRel)"
-    ]
-  }
-
-  private func resolveArmToolchain(version: String, tagCandidates: [String]) async throws -> ComponentPlan {
-    // Try candidates until a tag works.
-    var lastErr: Error?
-    for tag in tagCandidates {
-      do {
-        let rel = try await gitHub.getReleaseByTag(owner: "ARM-software", repo: "toolchain-gnu-bare-metal", tag: tag)
-        if let asset = pickArmToolchainAsset(release: rel) {
-          return ComponentPlan(
-            id: .armToolchain,
-            version: version,
-            installPathRelativeToRoot: "toolchain/\(version)",
-            downloadURL: asset.browser_download_url,
-            archiveType: asset.name.hasSuffix(".tar.xz") ? "tar.xz" : (asset.name.hasSuffix(".tar.gz") ? "tar.gz" : "unknown"),
-            notes: "Resolved from tag \(rel.tag_name), asset \(asset.name)"
-          )
-        }
-        throw PicoBootstrapError.notFound("No matching toolchain asset in release \(rel.tag_name)")
-      } catch {
-        lastErr = error
-      }
+  private func resolveArmToolchain(version: String) async throws -> ComponentPlan {
+    // Load toolchain index from remote or bundled fallback
+    let index = await toolchainLoader.loadToolchainIndex()
+    let platformKey = env.iniPlatformKey
+    
+    guard let downloadURL = index.url(for: version, platform: platformKey) else {
+      throw PicoBootstrapError.notFound("ARM toolchain version \(version) not found for platform \(platformKey) in supportedToolchains.ini")
     }
-    throw lastErr ?? PicoBootstrapError.notFound("Could not resolve ARM toolchain release for \(version)")
-  }
-
-  private func pickArmToolchainAsset(release: GitHubRelease) -> GitHubRelease.Asset? {
-    // ARM toolchain assets often include strings like:
-    // - x86_64-linux / aarch64-linux / darwin-x86_64 / darwin-arm64
-    // We pick a tar archive that matches OS/arch.
-    let assets = release.assets
-
-    func matches(_ a: GitHubRelease.Asset) -> Bool {
-      let n = a.name.lowercased()
-      guard n.hasSuffix(".tar.xz") || n.hasSuffix(".tar.gz") else { return false }
-
-      switch env.os {
-      case .linux:
-        if env.arch == .x86_64 { return n.contains("x86_64") && n.contains("linux") }
-        return n.contains("aarch64") && n.contains("linux")
-      case .macos:
-        // Some toolchain releases might not ship macOS; if not found, fail.
-        if env.arch == .x86_64 { return n.contains("darwin") && n.contains("x86_64") }
-        return n.contains("darwin") && (n.contains("arm64") || n.contains("aarch64"))
-      }
+    
+    // Determine archive type from URL
+    let archiveType: String
+    if downloadURL.hasSuffix(".tar.xz") {
+      archiveType = "tar.xz"
+    } else if downloadURL.hasSuffix(".tar.gz") {
+      archiveType = "tar.gz"
+    } else if downloadURL.hasSuffix(".tar.bz2") {
+      archiveType = "tar.bz2"
+    } else if downloadURL.hasSuffix(".pkg") {
+      archiveType = "pkg"
+    } else {
+      archiveType = "unknown"
     }
-
-    return assets.first(where: matches)
+    
+    let source = index.isRemote ? "remote supportedToolchains.ini" : "bundled supportedToolchains.ini (offline cache)"
+    return ComponentPlan(
+      id: .armToolchain,
+      version: version,
+      installPathRelativeToRoot: "toolchain/\(version)",
+      downloadURL: downloadURL,
+      archiveType: archiveType,
+      notes: "Resolved from \(source), platform \(platformKey)"
+    )
   }
 
   private func resolvePicoSdkTools(forSDK sdkVersion: String) async throws -> ComponentPlan? {

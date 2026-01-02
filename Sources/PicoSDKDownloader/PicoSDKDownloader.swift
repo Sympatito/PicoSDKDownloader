@@ -57,8 +57,9 @@ extension PicoBootstrap {
       let env = try HostEnvironment.detect()
       let http = HTTPClient(githubToken: common.githubToken)
       let gh = GitHubClient(http: http)
+      let toolchainLoader = ToolchainLoader(http: http)
 
-      let resolver = VersionResolver(env: env, gitHub: gh)
+      let resolver = VersionResolver(env: env, gitHub: gh, toolchainLoader: toolchainLoader)
       let req = InstallRequest(
         sdkVersion: sdk,
         armToolchainVersion: toolchain,
@@ -130,7 +131,8 @@ extension PicoBootstrap {
       let env = try HostEnvironment.detect()
       let http = HTTPClient(githubToken: common.githubToken)
       let gh = GitHubClient(http: http)
-      let resolver = VersionResolver(env: env, gitHub: gh)
+      let toolchainLoader = ToolchainLoader(http: http)
+      let resolver = VersionResolver(env: env, gitHub: gh, toolchainLoader: toolchainLoader)
 
       let req = InstallRequest(
         sdkVersion: sdk,
@@ -188,8 +190,14 @@ extension PicoBootstrap {
         for r in rels { print(r.tag_name) }
 
       case .armToolchainReleases:
-        let rels = try await gh.listReleases(owner: "ARM-software", repo: "toolchain-gnu-bare-metal", limit: limit)
-        for r in rels { print(r.tag_name) }
+        // Load from supportedToolchains.ini instead of GitHub releases
+        let toolchainLoader = ToolchainLoader(http: http)
+        let index = await toolchainLoader.loadToolchainIndex()
+        let versions = Array(index.sections.keys).sorted(by: >)
+        let limitedVersions = limit > 0 ? Array(versions.prefix(limit)) : versions
+        for version in limitedVersions {
+          print(version)
+        }
       }
     }
   }

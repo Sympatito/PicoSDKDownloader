@@ -18,7 +18,10 @@ let package = Package(
       dependencies: [
         .product(name: "ArgumentParser", package: "swift-argument-parser")
       ],
-      path: "Sources"
+      path: "Sources",
+      resources: [
+        .copy("PicoSDKDownloader/Resources/supportedToolchains.ini")
+      ]
     )
   ]
 )
