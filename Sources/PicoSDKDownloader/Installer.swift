@@ -43,6 +43,7 @@ final class Installer {
     try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
     print("Extracting toolchain into \(dest.path)")
     try Extractor.extract(archive: archive, to: dest)
+    try flattenSingleDirectoryIfNeeded(at: dest)
   }
 
   func installPicoSdkTools(plan: InstallPlan, root: URL) async throws {
@@ -90,6 +91,7 @@ final class Installer {
     try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
     print("Extracting CMake into \(dest.path)")
     try Extractor.extract(archive: archive, to: dest)
+    try flattenSingleDirectoryIfNeeded(at: dest)
 
     // pico-vscode creates a symlink on macOS for CMake.app/Contents/bin -> bin
     if env.os == .macos {
@@ -147,5 +149,25 @@ final class Installer {
     try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
     print("Extracting picotool into \(dest.path)")
     try Extractor.extract(archive: archive, to: dest)
+  }
+
+  private func flattenSingleDirectoryIfNeeded(at directory: URL) throws {
+    let fm = FileManager.default
+    let contents = try fm.contentsOfDirectory(
+      at: directory,
+      includingPropertiesForKeys: [.isDirectoryKey],
+      options: [.skipsHiddenFiles]
+    )
+    guard contents.count == 1 else { return }
+    let child = contents[0]
+    let values = try child.resourceValues(forKeys: [.isDirectoryKey])
+    guard values.isDirectory == true else { return }
+
+    let childContents = try fm.contentsOfDirectory(at: child, includingPropertiesForKeys: nil)
+    for item in childContents {
+      let target = directory.appendingPathComponent(item.lastPathComponent)
+      try fm.moveItem(at: item, to: target)
+    }
+    try fm.removeItem(at: child)
   }
 }
