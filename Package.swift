@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-  name: "pico-bootstrap",
+  name: "PicoSDKDownloader",
   platforms: [
     .macOS(.v13)
   ],
