@@ -19,7 +19,23 @@ public final class Installer {
 
     // clone into dest
     print("Cloning pico-sdk \(plan.request.sdkVersion) into \(dest.path)")
-    try Shell.run("git", ["clone", "--depth", "1", "--branch", plan.request.sdkVersion, "https://github.com/raspberrypi/pico-sdk.git", dest.path])
+    try Shell.run(
+      "git",
+      [
+        "clone",
+        "--depth",
+        "1",
+        "--branch",
+        plan.request.sdkVersion,
+        "--recurse-submodules",
+        "--shallow-submodules",
+        "https://github.com/raspberrypi/pico-sdk.git",
+        dest.path,
+      ]
+    )
+    print("Syncing pico-sdk submodules")
+    try Shell.run("git", ["-C", dest.path, "submodule", "sync", "--recursive"])
+    try Shell.run("git", ["-C", dest.path, "submodule", "update", "--init", "--recursive", "--depth", "1"])
   }
 
   public func installArmToolchain(plan: InstallPlan, root: URL) async throws {
