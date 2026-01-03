@@ -23,7 +23,7 @@
         {
             "type": "swift",
             "request": "launch",
-            "args": ["resolve", "--root", "./scratch", "--sdk", "2.2.0", "--toolchain", "14_2_Rel1", "--cmake", "3.31.5", "--ninja", "1.12.1", "--picotool", "2.2.0-a4"],
+            "args": ["resolve", "--root", "./scratch", "--sdk", "2.2.0", "--toolchain", "14_2_Rel1", "--cmake", "3.31.5", "--ninja", "1.12.1", "--openocd", "0.12.0+dev", "--picotool", "2.2.0-a4"],
             "cwd": "${workspaceFolder:PicoSDKDownloader}",
             "name": "Debug pico-bootstrap",
             "target": "pico-bootstrap",

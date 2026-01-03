@@ -3,9 +3,6 @@ import PackageDescription
 
 let package = Package(
   name: "PicoSDKDownloader",
-  platforms: [
-    .macOS(.v13)
-  ],
   products: [
     .library(name: "PicoSDKDownloaderKit", targets: ["PicoSDKDownloaderKit"]),
     .executable(name: "pico-bootstrap", targets: ["pico-bootstrap"]),

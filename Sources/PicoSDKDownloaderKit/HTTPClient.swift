@@ -11,6 +11,18 @@ public final class HTTPClient {
   }
 
   public func get(_ url: URL, headers: [String: String] = [:]) async throws -> (Data, HTTPURLResponse) {
+    #if os(macOS)
+    // The other option is to add a restriction at the package level for macOS 13, but this then requires
+    // all consumers to also restrict their packages to macOS 13, while this is host-only running code.
+    // This is undesirable but provides better ergonomics. An alternative could be to provide a wrapper
+    // around dataTask.
+    // TODO: Provide a wrapper around dataTask for older OS versions.
+
+    guard #available(macOS 13, *) else {
+      throw PicoBootstrapError.unsupportedPlatform("macOS v13 is required for async HTTP requests.")
+    }
+    #endif
+
     let req = makeRequest(url: url, headers: headers)
 
     let (data, resp) = try await URLSession.shared.data(for: req)
@@ -24,6 +36,13 @@ public final class HTTPClient {
   }
 
   public func download(_ url: URL, to dest: URL) async throws {
+    #if os(macOS)
+    // TODO: Provide a wrapper around dataTask for older OS versions.
+    guard #available(macOS 13, *) else {
+      throw PicoBootstrapError.unsupportedPlatform("macOS v13 is required for async HTTP requests.")
+    }
+    #endif
+
     try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
 
     let req = makeRequest(url: url)
