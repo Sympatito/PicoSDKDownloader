@@ -95,10 +95,13 @@ extension PicoBootstrap {
 
     func run() throws {
       try runBlocking {
+        print("[PicoSDKDownloader] Starting installation...")
         let env = try HostEnvironment.detect()
         let http = HTTPClient(githubToken: common.githubToken)
         let gh = GitHubClient(http: http)
         let toolchainLoader = ToolchainLoader(http: http)
+
+        print("[PicoSDKDownloader] Resolving versions and download URLs...")
 
         let resolver = VersionResolver(env: env, gitHub: gh, toolchainLoader: toolchainLoader)
         let req = InstallRequest(
@@ -111,8 +114,12 @@ extension PicoBootstrap {
           includePicoSdkTools: includeSdkTools
         )
 
+        print("[PicoSDKDownloader] Install request:")
+
         let plan = try await resolver.resolve(request: req)
         print(plan.prettyDescription)
+
+        print("[PicoSDKDownloader] Starting installation...")
 
         let installer = Installer(env: env, http: http)
         try FileManager.default.createDirectory(at: common.rootURL, withIntermediateDirectories: true)
@@ -143,7 +150,7 @@ extension PicoBootstrap {
         try await installer.installOpenOCD(plan: plan, root: common.rootURL)
         try await store.record(plan: plan, component: .openocd)
 
-        print("\nDone. Installed under: \(common.rootURL.path)")
+        print("\n[PicoSDKDownloader] Done. Installed under: \(common.rootURL.path)")
       }
     }
   }

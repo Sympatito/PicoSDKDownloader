@@ -32,7 +32,7 @@ public final class ToolchainLoader {
         return ToolchainIndex(sections: parsed, source: .remote)
       }
     } catch {
-      print("Failed to fetch remote supportedToolchains.ini: \(error)")
+      print("[PicoSDKDownloader] Failed to fetch remote supportedToolchains.ini: \(error)")
     }
     
     // Fall back to bundled resource

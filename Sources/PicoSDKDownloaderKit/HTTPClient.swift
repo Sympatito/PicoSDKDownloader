@@ -5,9 +5,14 @@ import FoundationNetworking
 
 public final class HTTPClient {
   private let githubToken: String?
+  private let session: URLSession
 
   public init(githubToken: String?) {
     self.githubToken = (githubToken?.isEmpty == false) ? githubToken : nil
+    let config = URLSessionConfiguration.ephemeral
+    config.requestCachePolicy = .reloadIgnoringLocalCacheData
+    config.urlCache = nil
+    self.session = URLSession(configuration: config)
   }
 
   public func get(_ url: URL, headers: [String: String] = [:]) async throws -> (Data, HTTPURLResponse) {
@@ -25,7 +30,7 @@ public final class HTTPClient {
 
     let req = makeRequest(url: url, headers: headers)
 
-    let (data, resp) = try await URLSession.shared.data(for: req)
+    let (data, resp) = try await session.data(for: req)
     guard let http = resp as? HTTPURLResponse else {
       throw PicoBootstrapError.http("Non-HTTP response for \(url)")
     }
@@ -46,7 +51,7 @@ public final class HTTPClient {
     try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
 
     let req = makeRequest(url: url)
-    let (tmp, resp) = try await URLSession.shared.download(for: req)
+    let (tmp, resp) = try await session.download(for: req)
     guard let http = resp as? HTTPURLResponse else {
       throw PicoBootstrapError.http("Non-HTTP response for \(url)")
     }
@@ -65,7 +70,7 @@ public final class HTTPClient {
     var req = URLRequest(url: url)
     req.httpMethod = "GET"
     for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
-    if let githubToken {
+    if url.host?.hasSuffix("api.github.com") == true, let githubToken {
       req.setValue("token \(githubToken)", forHTTPHeaderField: "Authorization")
     }
     req.setValue("pico-bootstrap/0.1.0", forHTTPHeaderField: "User-Agent")

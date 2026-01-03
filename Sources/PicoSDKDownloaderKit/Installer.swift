@@ -12,13 +12,13 @@ public final class Installer {
   public func installPicoSDK(plan: InstallPlan, root: URL) async throws {
     let dest = root.appendingPathComponent(plan.picoSDK.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
-      print("Pico SDK already exists at \(dest.path) (skipping)")
+      print("[PicoSDKDownloader] Pico SDK already exists at \(dest.path) (skipping)")
       return
     }
     try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
 
     // clone into dest
-    print("Cloning pico-sdk \(plan.request.sdkVersion) into \(dest.path)")
+    print("[PicoSDKDownloader] Cloning pico-sdk \(plan.request.sdkVersion) into \(dest.path)")
     try Shell.run(
       "git",
       [
@@ -33,16 +33,18 @@ public final class Installer {
         dest.path,
       ]
     )
-    print("Syncing pico-sdk submodules")
+    print("[PicoSDKDownloader] Syncing pico-sdk submodules")
     try Shell.run("git", ["-C", dest.path, "submodule", "sync", "--recursive"])
+    print("[PicoSDKDownloader] Syncing pico-sdk submodules - Recursively initializing dependencies. This can take a few minutes...")
     try Shell.run("git", ["-C", dest.path, "submodule", "update", "--init", "--recursive", "--depth", "1"])
+    print("[PicoSDKDownloader] Syncing pico-sdk submodules - Done")
   }
 
   public func installArmToolchain(plan: InstallPlan, root: URL) async throws {
     let c = plan.armToolchain
     let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
-      print("ARM toolchain already exists at \(dest.path) (skipping)")
+      print("[PicoSDKDownloader] ARM toolchain already exists at \(dest.path) (skipping)")
       return
     }
     guard let urlStr = c.downloadURL, let url = URL(string: urlStr) else {
@@ -53,11 +55,12 @@ public final class Installer {
     defer { try? tmp.cleanup() }
 
     let archive = tmp.url.appendingPathComponent("toolchain.\(c.archiveType ?? "tar.xz")")
-    print("Downloading toolchain: \(urlStr)")
+    print("[PicoSDKDownloader] Downloading toolchain: \(urlStr)")
+    print("[PicoSDKDownloader] This may take a few minutes depending on your connection speed...")
     try await http.download(url, to: archive)
 
     try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-    print("Extracting toolchain into \(dest.path)")
+    print("[PicoSDKDownloader] Extracting toolchain into \(dest.path)")
     try Extractor.extract(archive: archive, to: dest)
     try flattenSingleDirectoryIfNeeded(at: dest)
   }
@@ -66,7 +69,7 @@ public final class Installer {
     guard let c = plan.picoSdkTools else { return }
     let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
-      print("pico-sdk-tools already exists at \(dest.path) (skipping)")
+      print("[PicoSDKDownloader] pico-sdk-tools already exists at \(dest.path) (skipping)")
       return
     }
     guard let urlStr = c.downloadURL, let url = URL(string: urlStr) else {
@@ -78,11 +81,11 @@ public final class Installer {
 
     let ext = c.archiveType ?? "zip"
     let archive = tmp.url.appendingPathComponent("pico-sdk-tools.\(ext)")
-    print("Downloading pico-sdk-tools: \(urlStr)")
+    print("[PicoSDKDownloader] Downloading pico-sdk-tools: \(urlStr)")
     try await http.download(url, to: archive)
 
     try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-    print("Extracting pico-sdk-tools into \(dest.path)")
+    print("[PicoSDKDownloader] Extracting pico-sdk-tools into \(dest.path)")
     try Extractor.extract(archive: archive, to: dest)
   }
 
@@ -90,7 +93,7 @@ public final class Installer {
     let c = plan.cmake
     let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
-      print("CMake already exists at \(dest.path) (skipping)")
+      print("[PicoSDKDownloader] CMake already exists at \(dest.path) (skipping)")
       return
     }
     guard let urlStr = c.downloadURL, let url = URL(string: urlStr) else {
@@ -101,11 +104,11 @@ public final class Installer {
     defer { try? tmp.cleanup() }
 
     let archive = tmp.url.appendingPathComponent("cmake.\(c.archiveType ?? "tar.gz")")
-    print("Downloading CMake: \(urlStr)")
+    print("[PicoSDKDownloader] Downloading CMake: \(urlStr)")
     try await http.download(url, to: archive)
 
     try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-    print("Extracting CMake into \(dest.path)")
+    print("[PicoSDKDownloader] Extracting CMake into \(dest.path)")
     try Extractor.extract(archive: archive, to: dest)
     try flattenSingleDirectoryIfNeeded(at: dest)
 
@@ -124,7 +127,7 @@ public final class Installer {
     let c = plan.ninja
     let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
-      print("Ninja already exists at \(dest.path) (skipping)")
+      print("[PicoSDKDownloader] Ninja already exists at \(dest.path) (skipping)")
       return
     }
     guard let urlStr = c.downloadURL, let url = URL(string: urlStr) else {
@@ -135,11 +138,11 @@ public final class Installer {
     defer { try? tmp.cleanup() }
 
     let archive = tmp.url.appendingPathComponent("ninja.zip")
-    print("Downloading Ninja: \(urlStr)")
+    print("[PicoSDKDownloader] Downloading Ninja: \(urlStr)")
     try await http.download(url, to: archive)
 
     try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-    print("Extracting Ninja into \(dest.path)")
+    print("[PicoSDKDownloader] Extracting Ninja into \(dest.path)")
     try Extractor.extract(archive: archive, to: dest)
   }
 
@@ -147,7 +150,7 @@ public final class Installer {
     let c = plan.picotool
     let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
-      print("Picotool already exists at \(dest.path) (skipping)")
+      print("[PicoSDKDownloader] Picotool already exists at \(dest.path) (skipping)")
       return
     }
     guard let urlStr = c.downloadURL, let url = URL(string: urlStr) else {
@@ -159,11 +162,11 @@ public final class Installer {
 
     let ext = c.archiveType ?? "zip"
     let archive = tmp.url.appendingPathComponent("picotool.\(ext)")
-    print("Downloading picotool: \(urlStr)")
+    print("[PicoSDKDownloader] Downloading picotool: \(urlStr)")
     try await http.download(url, to: archive)
 
     try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-    print("Extracting picotool into \(dest.path)")
+    print("[PicoSDKDownloader] Extracting picotool into \(dest.path)")
     try Extractor.extract(archive: archive, to: dest)
   }
 
@@ -171,7 +174,7 @@ public final class Installer {
     let c = plan.openocd
     let dest = root.appendingPathComponent(c.installPathRelativeToRoot, isDirectory: true)
     if FileManager.default.fileExists(atPath: dest.path) {
-      print("OpenOCD already exists at \(dest.path) (skipping)")
+      print("[PicoSDKDownloader] OpenOCD already exists at \(dest.path) (skipping)")
       return
     }
     guard let urlStr = c.downloadURL, let url = URL(string: urlStr) else {
@@ -183,11 +186,11 @@ public final class Installer {
 
     let ext = c.archiveType ?? "zip"
     let archive = tmp.url.appendingPathComponent("openocd.\(ext)")
-    print("Downloading OpenOCD: \(urlStr)")
+    print("[PicoSDKDownloader] Downloading OpenOCD: \(urlStr)")
     try await http.download(url, to: archive)
 
     try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-    print("Extracting OpenOCD into \(dest.path)")
+    print("[PicoSDKDownloader] Extracting OpenOCD into \(dest.path)")
     try Extractor.extract(archive: archive, to: dest)
     try flattenSingleDirectoryIfNeeded(at: dest)
 
