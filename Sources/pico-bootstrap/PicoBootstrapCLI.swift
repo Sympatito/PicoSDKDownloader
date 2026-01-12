@@ -103,7 +103,13 @@ extension PicoBootstrap {
 
         print("[PicoSDKDownloader] Resolving versions and download URLs...")
 
-        let resolver = VersionResolver(env: env, gitHub: gh, toolchainLoader: toolchainLoader)
+        let resolver = VersionResolver(
+          env: env,
+          gitHub: gh,
+          toolchainLoader: toolchainLoader,
+          installRoot: common.rootURL,
+          preferInstalled: true
+        )
         let req = InstallRequest(
           sdkVersion: sdk,
           armToolchainVersion: toolchain,

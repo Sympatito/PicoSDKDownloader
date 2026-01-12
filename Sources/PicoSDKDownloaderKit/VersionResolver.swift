@@ -8,16 +8,30 @@ public final class VersionResolver {
   private let env: HostEnvironment
   private let gitHub: GitHubClient
   private let toolchainLoader: ToolchainLoader
+  private let installRoot: URL?
+  private let preferInstalled: Bool
 
-  public init(env: HostEnvironment, gitHub: GitHubClient, toolchainLoader: ToolchainLoader) {
+  public init(
+    env: HostEnvironment,
+    gitHub: GitHubClient,
+    toolchainLoader: ToolchainLoader,
+    installRoot: URL? = nil,
+    preferInstalled: Bool = false
+  ) {
     self.env = env
     self.gitHub = gitHub
     self.toolchainLoader = toolchainLoader
+    self.installRoot = installRoot
+    self.preferInstalled = preferInstalled
   }
 
   public func resolve(request: InstallRequest) async throws -> InstallPlan {
     // Pico SDK: git tag (no archive URL needed)
-    let picoSDK = ComponentPlan(
+    let picoSDK = localPlanIfInstalled(
+      id: .picoSDK,
+      version: request.sdkVersion,
+      installPathRelativeToRoot: "sdk/\(request.sdkVersion)"
+    ) ?? ComponentPlan(
       id: .picoSDK,
       version: request.sdkVersion,
       installPathRelativeToRoot: "sdk/\(request.sdkVersion)",
@@ -27,24 +41,82 @@ public final class VersionResolver {
     )
 
     // ARM toolchain: resolve from supportedToolchains.ini (remote + bundled fallback)
-    let toolchain = try await resolveArmToolchain(version: request.armToolchainVersion)
+    let toolchain: ComponentPlan
+    if let local = localPlanIfInstalled(
+      id: .armToolchain,
+      version: request.armToolchainVersion,
+      installPathRelativeToRoot: "toolchain/\(request.armToolchainVersion)"
+    ) {
+      toolchain = local
+    } else {
+      toolchain = try await resolveArmToolchain(version: request.armToolchainVersion)
+    }
 
     // pico-sdk-tools: try to resolve from raspberrypi/pico-sdk-tools; tag naming varies, so we search.
-    let picoSdkTools = request.includePicoSdkTools
-      ? try await resolvePicoSdkTools(forSDK: request.sdkVersion)
-      : nil
+    let picoSdkTools: ComponentPlan?
+    if request.includePicoSdkTools {
+      if let local = localPlanIfInstalled(
+        id: .picoSdkTools,
+        version: request.sdkVersion,
+        installPathRelativeToRoot: "tools/\(request.sdkVersion)"
+      ) {
+        picoSdkTools = local
+      } else {
+        picoSdkTools = try await resolvePicoSdkTools(forSDK: request.sdkVersion)
+      }
+    } else {
+      picoSdkTools = nil
+    }
 
     // CMake: use Kitware GitHub release assets; tag is commonly "v3.31.5"
-    let cmake = try await resolveCMake(version: request.cmakeVersion)
+    let cmakeTag = request.cmakeVersion.hasPrefix("v") ? request.cmakeVersion : "v\(request.cmakeVersion)"
+    let cmake: ComponentPlan
+    if let local = localPlanIfInstalled(
+      id: .cmake,
+      version: request.cmakeVersion,
+      installPathRelativeToRoot: "cmake/\(cmakeTag)"
+    ) {
+      cmake = local
+    } else {
+      cmake = try await resolveCMake(version: request.cmakeVersion)
+    }
 
     // Ninja: GitHub release assets (ninja-build/ninja)
-    let ninja = try await resolveNinja(version: request.ninjaVersion)
+    let ninjaTag = request.ninjaVersion.hasPrefix("v") ? request.ninjaVersion : "v\(request.ninjaVersion)"
+    let ninja: ComponentPlan
+    if let local = localPlanIfInstalled(
+      id: .ninja,
+      version: request.ninjaVersion,
+      installPathRelativeToRoot: "ninja/\(ninjaTag)"
+    ) {
+      ninja = local
+    } else {
+      ninja = try await resolveNinja(version: request.ninjaVersion)
+    }
 
     // picotool: raspberrypi/picotool release
-    let picotool = try await resolvePicotool(version: request.picotoolVersion)
+    let picotool: ComponentPlan
+    if let local = localPlanIfInstalled(
+      id: .picotool,
+      version: request.picotoolVersion,
+      installPathRelativeToRoot: "picotool/\(request.picotoolVersion)"
+    ) {
+      picotool = local
+    } else {
+      picotool = try await resolvePicotool(version: request.picotoolVersion)
+    }
 
     // openocd: raspberrypi/pico-sdk-tools release
-    let openocd = try await resolveOpenOCD(version: request.openocdVersion)
+    let openocd: ComponentPlan
+    if let local = localPlanIfInstalled(
+      id: .openocd,
+      version: request.openocdVersion,
+      installPathRelativeToRoot: "openocd/\(request.openocdVersion)"
+    ) {
+      openocd = local
+    } else {
+      openocd = try await resolveOpenOCD(version: request.openocdVersion)
+    }
 
     return InstallPlan(
       env: env,
@@ -60,6 +132,24 @@ public final class VersionResolver {
   }
 
   // MARK: - Resolution helpers
+  private func localPlanIfInstalled(
+    id: ComponentId,
+    version: String,
+    installPathRelativeToRoot: String
+  ) -> ComponentPlan? {
+    guard preferInstalled, let installRoot else { return nil }
+    let dest = installRoot.appendingPathComponent(installPathRelativeToRoot, isDirectory: true)
+    guard FileManager.default.fileExists(atPath: dest.path) else { return nil }
+
+    return ComponentPlan(
+      id: id,
+      version: version,
+      installPathRelativeToRoot: installPathRelativeToRoot,
+      downloadURL: nil,
+      archiveType: nil,
+      notes: "Found existing install at \(dest.path); skipping remote resolution"
+    )
+  }
 
   private func detectArchiveType(from url: String) -> String {
     if url.hasSuffix(".tar.xz") {
